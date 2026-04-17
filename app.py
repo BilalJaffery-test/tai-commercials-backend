@@ -83,19 +83,48 @@ def test_connection():
             "response": e.response.text if e.response else None
         }
 
-    # Stage 3: List datasets the app has access to
+    # Stage 3: List datasets WITHIN the specific workspace (correct for service principals)
     try:
-        url = "https://api.powerbi.com/v1.0/myorg/datasets"
-        r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
-        r.raise_for_status()
-        datasets = r.json().get("value", [])
-        results["stages"]["3_datasets"] = {
-            "success": True,
-            "count": len(datasets),
-            "datasets": [{"id": d["id"], "name": d["name"]} for d in datasets]
-        }
+        workspace_id = workspaces[0]["id"] if workspaces else None
+        if workspace_id:
+            url = f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/datasets"
+            r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+            r.raise_for_status()
+            datasets = r.json().get("value", [])
+            results["stages"]["3_datasets_in_workspace"] = {
+                "success": True,
+                "count": len(datasets),
+                "datasets": [{"id": d["id"], "name": d["name"]} for d in datasets]
+            }
+        else:
+            results["stages"]["3_datasets_in_workspace"] = {
+                "success": False,
+                "error": "No workspace found"
+            }
     except requests.HTTPError as e:
-        results["stages"]["3_datasets"] = {
+        results["stages"]["3_datasets_in_workspace"] = {
+            "success": False,
+            "error": str(e),
+            "response": e.response.text if e.response else None
+        }
+
+    # Stage 4: Try executeQueries on the target dataset via the workspace-scoped endpoint
+    try:
+        workspace_id = workspaces[0]["id"] if workspaces else None
+        if workspace_id:
+            url = f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/datasets/{DATASET_ID}/executeQueries"
+            body = {
+                "queries": [{"query": "EVALUATE ROW(\"test\", 1)"}],
+                "serializerSettings": {"includeNulls": True}
+            }
+            r = requests.post(url, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, json=body)
+            r.raise_for_status()
+            results["stages"]["4_execute_query_test"] = {
+                "success": True,
+                "response": r.json()
+            }
+    except requests.HTTPError as e:
+        results["stages"]["4_execute_query_test"] = {
             "success": False,
             "error": str(e),
             "response": e.response.text if e.response else None
