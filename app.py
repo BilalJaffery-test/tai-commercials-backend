@@ -52,6 +52,58 @@ def home():
     })
 
 
+@app.route("/api/test-connection")
+def test_connection():
+    """Diagnostic endpoint — tests each stage of the PBI connection separately."""
+    results = {"stages": {}}
+
+    # Stage 1: Get access token
+    try:
+        token = get_access_token()
+        results["stages"]["1_auth"] = {"success": True, "message": "Token obtained"}
+    except Exception as e:
+        results["stages"]["1_auth"] = {"success": False, "error": str(e)}
+        return jsonify(results), 500
+
+    # Stage 2: List workspaces the app has access to
+    try:
+        url = "https://api.powerbi.com/v1.0/myorg/groups"
+        r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+        r.raise_for_status()
+        workspaces = r.json().get("value", [])
+        results["stages"]["2_workspaces"] = {
+            "success": True,
+            "count": len(workspaces),
+            "workspaces": [{"id": w["id"], "name": w["name"]} for w in workspaces]
+        }
+    except requests.HTTPError as e:
+        results["stages"]["2_workspaces"] = {
+            "success": False,
+            "error": str(e),
+            "response": e.response.text if e.response else None
+        }
+
+    # Stage 3: List datasets the app has access to
+    try:
+        url = "https://api.powerbi.com/v1.0/myorg/datasets"
+        r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+        r.raise_for_status()
+        datasets = r.json().get("value", [])
+        results["stages"]["3_datasets"] = {
+            "success": True,
+            "count": len(datasets),
+            "datasets": [{"id": d["id"], "name": d["name"]} for d in datasets]
+        }
+    except requests.HTTPError as e:
+        results["stages"]["3_datasets"] = {
+            "success": False,
+            "error": str(e),
+            "response": e.response.text if e.response else None
+        }
+
+    return jsonify(results)
+
+
 @app.route("/api/tai-demand")
 def tai_demand():
     """Fetches TAI Demand (Month) = SUM(Ee Revenue Mth) + SUM(Con' Margin Mth)"""
