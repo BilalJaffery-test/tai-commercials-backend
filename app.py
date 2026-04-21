@@ -119,12 +119,59 @@ def test_connection():
             }
             r = requests.post(url, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, json=body)
             r.raise_for_status()
-            results["stages"]["4_execute_query_test"] = {
+            results["stages"]["4_execute_query_via_workspace"] = {
                 "success": True,
                 "response": r.json()
             }
     except requests.HTTPError as e:
-        results["stages"]["4_execute_query_test"] = {
+        results["stages"]["4_execute_query_via_workspace"] = {
+            "success": False,
+            "error": str(e),
+            "response": e.response.text if e.response else None,
+            "status_code": e.response.status_code if e.response else None
+        }
+
+    # Stage 5: Try executeQueries via the direct dataset endpoint (different routing)
+    try:
+        url = f"https://api.powerbi.com/v1.0/myorg/datasets/{DATASET_ID}/executeQueries"
+        body = {
+            "queries": [{"query": "EVALUATE ROW(\"test\", 1)"}],
+            "serializerSettings": {"includeNulls": True}
+        }
+        r = requests.post(url, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, json=body)
+        r.raise_for_status()
+        results["stages"]["5_execute_query_direct"] = {
+            "success": True,
+            "response": r.json()
+        }
+    except requests.HTTPError as e:
+        results["stages"]["5_execute_query_direct"] = {
+            "success": False,
+            "error": str(e),
+            "response": e.response.text if e.response else None,
+            "status_code": e.response.status_code if e.response else None
+        }
+
+    # Stage 6: Get dataset details to check if 'Execute Queries' is enabled on the specific dataset
+    try:
+        workspace_id = workspaces[0]["id"] if workspaces else None
+        if workspace_id:
+            url = f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/datasets/{DATASET_ID}"
+            r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+            r.raise_for_status()
+            dataset_info = r.json()
+            results["stages"]["6_dataset_details"] = {
+                "success": True,
+                "name": dataset_info.get("name"),
+                "configuredBy": dataset_info.get("configuredBy"),
+                "isRefreshable": dataset_info.get("isRefreshable"),
+                "isEffectiveIdentityRequired": dataset_info.get("isEffectiveIdentityRequired"),
+                "isEffectiveIdentityRolesRequired": dataset_info.get("isEffectiveIdentityRolesRequired"),
+                "isOnPremGatewayRequired": dataset_info.get("isOnPremGatewayRequired"),
+                "targetStorageMode": dataset_info.get("targetStorageMode")
+            }
+    except requests.HTTPError as e:
+        results["stages"]["6_dataset_details"] = {
             "success": False,
             "error": str(e),
             "response": e.response.text if e.response else None
