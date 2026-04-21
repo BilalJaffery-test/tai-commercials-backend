@@ -108,23 +108,24 @@ def test_connection():
             "response": e.response.text if e.response else None
         }
 
-    # Stage 4: Try executeQueries on the target dataset via the workspace-scoped endpoint
+    # Stage 4: Try executeQueries with effective identity (required for RLS-enabled datasets)
     try:
         workspace_id = workspaces[0]["id"] if workspaces else None
         if workspace_id:
             url = f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/datasets/{DATASET_ID}/executeQueries"
             body = {
                 "queries": [{"query": "EVALUATE ROW(\"test\", 1)"}],
-                "serializerSettings": {"includeNulls": True}
+                "serializerSettings": {"includeNulls": True},
+                "impersonatedUserName": "Richard.Howes@baringa.com"
             }
             r = requests.post(url, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, json=body)
             r.raise_for_status()
-            results["stages"]["4_execute_query_via_workspace"] = {
+            results["stages"]["4_execute_query_with_impersonation"] = {
                 "success": True,
                 "response": r.json()
             }
     except requests.HTTPError as e:
-        results["stages"]["4_execute_query_via_workspace"] = {
+        results["stages"]["4_execute_query_with_impersonation"] = {
             "success": False,
             "error": str(e),
             "response": e.response.text if e.response else None,
